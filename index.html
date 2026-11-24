@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>葉の気孔・光合成CO2・水分関係クイズ</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+<div class="max-w-2xl mx-auto p-4">
+  <h1 class="text-2xl font-bold text-center text-green-300 mb-1">🌿 光合成・気孔クイズ</h1>
+  <p class="text-center text-slate-500 mb-4 text-sm">高校生物レベル：気孔・光合成・蒸散の仕組みを学ぼう</p>
+
+  <!-- Mode -->
+  <div class="flex gap-2 mb-4 justify-center flex-wrap">
+    <button onclick="setMode('quiz')" id="m-quiz" class="px-3 py-1 rounded bg-green-900 text-green-200 text-xs font-semibold" aria-label="クイズモード">📝 クイズ</button>
+    <button onclick="setMode('diagram')" id="m-diagram" class="px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs" aria-label="図説モード">🔬 図説</button>
+  </div>
+
+  <!-- Score (quiz mode) -->
+  <div id="score-row" class="flex justify-center gap-4 mb-4 text-sm">
+    <span class="text-green-400">正解: <span id="correct-count" class="font-bold">0</span></span>
+    <span class="text-red-400">不正解: <span id="wrong-count" class="font-bold">0</span></span>
+    <span class="text-yellow-400">問題数: <span id="total-count" class="font-bold">0</span></span>
+  </div>
+
+  <!-- Quiz panel -->
+  <div id="quiz-panel" class="bg-slate-900 rounded-2xl p-4 mb-4">
+    <canvas id="quiz-canvas" width="300" height="200" class="rounded-xl mb-3 w-full"></canvas>
+    <div id="question-text" class="text-sm text-slate-200 mb-1 font-semibold text-center min-h-8 px-2"></div>
+    <div id="question-sub" class="text-xs text-slate-400 text-center mb-3 min-h-4"></div>
+    <div id="choices" class="grid grid-cols-1 gap-2 mb-3"></div>
+    <div id="feedback" class="text-center text-sm font-semibold mb-2 min-h-5"></div>
+    <div id="explanation" class="hidden bg-slate-800 rounded-xl p-3 text-xs text-slate-300 mb-2"></div>
+    <button onclick="nextQuestion()" id="next-btn" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-sm hidden" aria-label="次の問題">次の問題 →</button>
+  </div>
+
+  <!-- Diagram panel -->
+  <div id="diagram-panel" class="hidden">
+    <!-- Diagram selector -->
+    <div class="flex gap-2 mb-3 flex-wrap justify-center">
+      <button onclick="showDiagram('stomata')" id="d-stomata" class="px-3 py-1 rounded bg-green-800 text-green-200 text-xs font-semibold" aria-label="気孔の仕組み">気孔の仕組み</button>
+      <button onclick="showDiagram('light')" id="d-light" class="px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs" aria-label="明反応">明反応</button>
+      <button onclick="showDiagram('dark')" id="d-dark" class="px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs" aria-label="暗反応（カルビン回路）">暗反応</button>
+      <button onclick="showDiagram('transpiration')" id="d-transpiration" class="px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs" aria-label="蒸散">蒸散</button>
+    </div>
+    <div class="bg-slate-900 rounded-2xl p-4">
+      <canvas id="diag-canvas" width="460" height="300" class="rounded-xl w-full mb-3"></canvas>
+      <div id="diag-desc" class="text-xs text-slate-300 space-y-1"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Quiz questions =====
+const questions = [
+  {
+    type: 'stomata_open',
+    q: '気孔が開くとき、孔辺細胞はどのような状態になるか？',
+    sub: '※光が当たったときの変化を選べ',
+    choices: [
+      '膨圧が上昇し、孔辺細胞が膨らんで気孔が開く',
+      '膨圧が低下し、孔辺細胞が萎んで気孔が開く',
+      'Ca²⁺イオンが流出して細胞が硬くなる',
+      'ATPが消費されずに自然に開く'
+    ],
+    correct: 0,
+    explain: '光照射 → 孔辺細胞の葉緑体がH⁺ポンプを活性化 → K⁺イオン流入 → 浸透圧上昇 → 水が流入 → 膨圧↑ → 孔辺細胞が膨らんで気孔が開く。'
+  },
+  {
+    type: 'photosynthesis_eq',
+    q: '光合成の全体反応式として正しいものはどれか？',
+    sub: '(光エネルギー=hν)',
+    choices: [
+      '6CO₂ + 6H₂O → C₆H₁₂O₆ + 6O₂',
+      '6CO₂ + 12H₂O →[hν] C₆H₁₂O₆ + 6O₂ + 6H₂O',
+      'C₆H₁₂O₆ + 6O₂ → 6CO₂ + 6H₂O',
+      '6CO₂ + 6H₂O →[hν] 6CH₂O + 6O₂'
+    ],
+    correct: 1,
+    explain: '光合成の正確な反応式は 6CO₂ + 12H₂O →[hν] C₆H₁₂O₆ + 6O₂ + 6H₂O（光エネルギーを使い、H₂Oを2つ消費してO₂を1つ出す）。'
+  },
+  {
+    type: 'light_reaction',
+    q: '明反応（光化学反応）で直接生産されないものはどれか？',
+    sub: 'チラコイド膜での反応',
+    choices: ['ATP', 'NADPH', 'O₂（酸素）', 'C₃化合物（3-ホスホグリセリン酸）'],
+    correct: 3,
+    explain: 'C₃化合物（3-PGA）は暗反応（カルビン回路）でCO₂固定から生産される。明反応ではATP・NADPH・O₂が生産される（O₂は水の光分解から）。'
+  },
+  {
+    type: 'calvin_cycle',
+    q: 'カルビン・ベンソン回路（暗反応）でCO₂を最初に受け取る物質は何か？',
+    choices: [
+      'RuBP（リブロース1,5-ビスリン酸）',
+      'ATP',
+      'G3P（グリセルアルデヒド3-リン酸）',
+      'NADPHリダクターゼ'
+    ],
+    correct: 0,
+    explain: 'RuBP（C5）+ CO₂ → 3-PGA (C3)×2 の反応がCO₂固定の第一歩。RuBisCO酵素が触媒する。'
+  },
+  {
+    type: 'stomata_close',
+    q: '乾燥ストレス時、気孔を閉じるシグナルとなる植物ホルモンはどれか？',
+    choices: [
+      'アブシジン酸（ABA）',
+      'ジベレリン',
+      'オーキシン',
+      'サイトカイニン'
+    ],
+    correct: 0,
+    explain: '水ストレスを受けた植物は葉でABAを合成し、孔辺細胞のK⁺チャネルを開いてK⁺を排出→浸透圧低下→水が流出→膨圧↓→気孔を閉じる。'
+  },
+  {
+    type: 'transpiration',
+    q: '蒸散がもっとも盛んになる条件はどれか？',
+    choices: [
+      '気温高・湿度低・風あり・光あり',
+      '気温低・湿度高・風なし・光なし',
+      '気温高・湿度高・風なし・光あり',
+      '気温低・湿度低・風あり・光なし'
+    ],
+    correct: 0,
+    explain: '気温高→気孔開く・葉面温度↑。湿度低→気孔内外の水蒸気分圧差↑。風→葉面の水蒸気飽和層を除去。これらが重なると蒸散速度が最大化する。'
+  },
+  {
+    type: 'chloroplast',
+    q: '葉緑体の内部でチラコイド膜（グラナ）が存在する場所はどこか？',
+    choices: [
+      'ストロマ（基質）の内部',
+      '外膜と内膜の間（膜間腔）',
+      'ストロマと外膜の境界',
+      '葉緑体の外側（細胞質）'
+    ],
+    correct: 0,
+    explain: 'チラコイク（グラナ）はストロマ（基質）内に積み重なって存在する。明反応（光リン酸化・水の光分解）はチラコイク膜上で行われ、暗反応はストロマで行われる。'
+  },
+  {
+    type: 'co2_fixation',
+    q: 'C4植物（トウモロコシなど）が高温・強光下で有利な理由はどれか？',
+    choices: [
+      '維管束鞘細胞でCO₂を濃縮し、光呼吸を抑制するため',
+      '気孔を常に全開にしてCO₂を大量に取り込むため',
+      '葉緑素量がC3植物より多く、光合成効率が高いため',
+      'RuBisCOの量が多く、CO₂親和性が高いため'
+    ],
+    correct: 0,
+    explain: 'C4植物は葉肉細胞でPEPカルボキシラーゼがCO₂をC4化合物に固定→維管束鞘細胞へ輸送→CO₂を高濃度に保つ（CO₂ポンプ）。これにより光呼吸が起こりにくくなり高温・乾燥でも効率的に光合成できる。'
+  },
+  {
+    type: 'water_potential',
+    q: '葉のpH・水ポテンシャルについて、蒸散が盛んなときの根→茎→葉での流れはどれか？',
+    choices: [
+      '根（高い水ポテンシャル）→ 葉（低い水ポテンシャル）へ水が移動',
+      '葉（高い水ポテンシャル）→ 根（低い水ポテンシャル）へ水が移動',
+      '水ポテンシャル差は生じず、能動輸送のみで移動',
+      '根圧のみで茎頂まで水が押し上げられる'
+    ],
+    correct: 0,
+    explain: '蒸散により葉の水ポテンシャルが低下し、根→茎→葉へ水ポテンシャルの勾配ができる（凝集力-張力説）。この引っ張り力で道管内の水柱が引き上げられる。'
+  },
+  {
+    type: 'compensation_point',
+    q: '光補償点とはどのような状態を指すか？',
+    choices: [
+      '光合成速度 = 呼吸速度（見かけの光合成 = 0）',
+      '光合成速度が最大となる光強度',
+      '気孔が完全に開く最小の光強度',
+      '光合成と呼吸が同時に停止する暗条件'
+    ],
+    correct: 0,
+    explain: '光補償点では光合成によるCO₂固定量 = 呼吸によるCO₂放出量となり、植物全体のCO₂の出入りがゼロ（見かけの光合成速度 = 0）になる。陰生植物は陽生植物より光補償点が低い。'
+  }
+];
+
+// ===== Diagram drawing =====
+function drawStomata(canvas, open) {
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1e1b4b'; ctx.fillRect(0,0,W,H);
+
+  const cx=W/2, cy=H/2;
+  // Epidermis cells
+  ctx.fillStyle='#166534'; ctx.fillRect(10,80,W-20,140);
+  ctx.fillStyle='#15803d'; ctx.fillRect(10,80,W-20,20);
+  ctx.fillStyle='#15803d'; ctx.fillRect(10,200,W-20,20);
+
+  // Guard cells
+  const gap = open ? 18 : 2;
+  const gx1=cx-30, gx2=cx+30;
+  // Left guard cell
+  ctx.fillStyle='#4ade80';
+  ctx.beginPath();
+  ctx.ellipse(gx1, cy, 25, 38, 0, 0, 2*Math.PI); ctx.fill();
+  // Right guard cell
+  ctx.beginPath();
+  ctx.ellipse(gx2, cy, 25, 38, 0, 0, 2*Math.PI); ctx.fill();
+
+  // Pore
+  if(open){
+    ctx.fillStyle='#030712';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, 8, 30, 0, 0, 2*Math.PI); ctx.fill();
+    // CO2 / H2O arrows
+    ctx.strokeStyle='#60a5fa'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(cx-5,cy-45); ctx.lineTo(cx-5,cy-65); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx-5,cy-65); ctx.lineTo(cx-10,cy-55); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx-5,cy-65); ctx.lineTo(cx,cy-55); ctx.stroke();
+    ctx.fillStyle='#60a5fa'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('CO₂ 流入', cx-5, cy-70);
+
+    ctx.strokeStyle='#a3e635';
+    ctx.beginPath(); ctx.moveTo(cx+15,cy-45); ctx.lineTo(cx+15,cy-65); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx+15,cy-65); ctx.lineTo(cx+10,cy-55); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx+15,cy-65); ctx.lineTo(cx+20,cy-55); ctx.stroke();
+    ctx.fillStyle='#a3e635';
+    ctx.fillText('H₂O 蒸散', cx+25, cy-70);
+  } else {
+    // Closed - guard cells touching
+    ctx.fillStyle='#030712';
+    ctx.beginPath(); ctx.ellipse(cx,cy,2,30,0,0,2*Math.PI); ctx.fill();
+  }
+
+  // K+ ions
+  if(open){
+    for(let i=0;i<5;i++){
+      const kx = gx1 + (Math.random()-0.5)*20, ky = cy+(Math.random()-0.5)*40;
+      ctx.fillStyle='#fbbf24'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('K⁺', kx, ky);
+    }
+  }
+
+  // Label
+  ctx.fillStyle='#f1f5f9'; ctx.font='13px sans-serif'; ctx.textAlign='center';
+  ctx.fillText(open ? '気孔 開（昼・光あり）' : '気孔 閉（夜・乾燥）', cx, H-10);
+  ctx.fillStyle='#86efac'; ctx.font='10px sans-serif';
+  ctx.fillText('孔辺細胞', cx-30, cy+50);
+  ctx.fillText('孔辺細胞', cx+30, cy+50);
+}
+
+function drawLightReaction(canvas) {
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1e1b4b'; ctx.fillRect(0,0,W,H);
+
+  // Thylakoid membrane
+  ctx.fillStyle='#166534'; ctx.fillRect(30, 100, W-60, 100);
+  ctx.fillStyle='#14532d'; ctx.fillRect(30, 120, W-60, 60);
+  ctx.fillStyle='#f1f5f9'; ctx.font='11px sans-serif'; ctx.textAlign='left';
+  ctx.fillText('チラコイク膜', 35, 115);
+
+  // PS II
+  ctx.fillStyle='#1d4ed8'; ctx.fillRect(60, 110, 60, 80);
+  ctx.fillStyle='#fff'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('PS II', 90, 155);
+  // sunlight arrow
+  ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(90,70); ctx.lineTo(90,110); ctx.stroke();
+  ctx.fillStyle='#fbbf24'; ctx.font='9px sans-serif';
+  ctx.fillText('光 hν', 90, 65);
+
+  // H2O split
+  ctx.fillStyle='#60a5fa'; ctx.font='9px sans-serif';
+  ctx.fillText('2H₂O', 55, 200);
+  ctx.strokeStyle='#60a5fa'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(80,195); ctx.lineTo(90,190); ctx.stroke();
+  ctx.fillStyle='#a3e635'; ctx.font='9px sans-serif';
+  ctx.fillText('O₂↑', 95, 200);
+
+  // Electron transport
+  ctx.strokeStyle='#f97316'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(120,145); ctx.lineTo(170,145); ctx.stroke();
+  ctx.fillStyle='#f97316'; ctx.font='9px sans-serif'; ctx.textAlign='left';
+  ctx.fillText('e⁻', 140, 140);
+
+  // Cytochrome complex
+  ctx.fillStyle='#7c3aed'; ctx.fillRect(170,110,50,80);
+  ctx.fillStyle='#fff'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('シト', 195, 148); ctx.fillText('クロム', 195, 160);
+
+  // H+ pumping
+  ctx.strokeStyle='#34d399'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(195,110); ctx.lineTo(195,90); ctx.stroke();
+  ctx.fillStyle='#34d399'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('H⁺', 195, 85);
+
+  // PS I
+  ctx.fillStyle='#1d4ed8'; ctx.fillRect(230,110,55,80);
+  ctx.fillStyle='#fff'; ctx.font='10px sans-serif';
+  ctx.fillText('PS I', 257, 155);
+  ctx.strokeStyle='#fbbf24'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(257,70); ctx.lineTo(257,110); ctx.stroke();
+  ctx.fillStyle='#fbbf24'; ctx.font='9px sans-serif';
+  ctx.fillText('光 hν', 257, 65);
+
+  // NADPH production
+  ctx.strokeStyle='#4ade80'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(285,145); ctx.lineTo(340,145); ctx.stroke();
+  ctx.fillStyle='#4ade80'; ctx.font='9px sans-serif'; ctx.textAlign='left';
+  ctx.fillText('NADPH', 338, 140);
+
+  // ATP synthase
+  ctx.fillStyle='#b45309'; ctx.fillRect(380,110,50,80);
+  ctx.fillStyle='#fff'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('ATP', 405, 148); ctx.fillText('合成酵素', 405, 160);
+  ctx.strokeStyle='#34d399';
+  ctx.beginPath(); ctx.moveTo(405,90); ctx.lineTo(405,110); ctx.stroke();
+  ctx.fillStyle='#fcd34d'; ctx.font='10px sans-serif';
+  ctx.fillText('ATP', 420, 100);
+
+  ctx.fillStyle='#e2e8f0'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('明反応（チラコイク膜）: 光 → ATP + NADPH + O₂', W/2, H-8);
+}
+
+function drawCalvinCycle(canvas) {
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#052e16'; ctx.fillRect(0,0,W,H);
+
+  const cx=W/2, cy=H/2;
+  // Circle
+  ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,cy,90,0,2*Math.PI); ctx.stroke();
+
+  // 3 nodes: RuBP, 3-PGA, G3P
+  const nodes=[
+    {x:cx,      y:cy-90, label:'RuBP (C5)', color:'#60a5fa'},
+    {x:cx+90,   y:cy+40, label:'3-PGA (C3)', color:'#f97316'},
+    {x:cx-90,   y:cy+40, label:'G3P (C3)', color:'#4ade80'},
+  ];
+
+  nodes.forEach(n=>{
+    ctx.fillStyle=n.color+'33';
+    ctx.beginPath(); ctx.arc(n.x,n.y,28,0,2*Math.PI); ctx.fill();
+    ctx.strokeStyle=n.color; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(n.x,n.y,28,0,2*Math.PI); ctx.stroke();
+    ctx.fillStyle=n.color; ctx.font='9px sans-serif'; ctx.textAlign='center';
+    ctx.fillText(n.label, n.x, n.y+4);
+  });
+
+  // CO2 input
+  ctx.strokeStyle='#60a5fa'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(cx-30,cy-90); ctx.lineTo(cx-55,cy-115); ctx.stroke();
+  ctx.fillStyle='#60a5fa'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('CO₂', cx-65, cy-120);
+
+  // ATP + NADPH input
+  ctx.strokeStyle='#fbbf24'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(cx+100,cy+10); ctx.lineTo(cx+130,cy-15); ctx.stroke();
+  ctx.fillStyle='#fbbf24'; ctx.font='9px sans-serif'; ctx.textAlign='left';
+  ctx.fillText('ATP+NADPH', cx+132, cy-10);
+
+  // G3P output
+  ctx.strokeStyle='#34d399'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(cx-100,cy+60); ctx.lineTo(cx-110,cy+85); ctx.stroke();
+  ctx.fillStyle='#34d399'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('→ グルコース合成', cx-80, cy+100);
+
+  // RuBisCO label
+  ctx.fillStyle='#f1f5f9'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('RuBisCO', cx+30, cy-55);
+
+  ctx.fillStyle='#e2e8f0'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('暗反応・カルビン回路（ストロマ）', W/2, H-8);
+}
+
+function drawTranspiration(canvas) {
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#ecfdf5'; ctx.fillRect(0,0,W,H);
+
+  // Leaf shape
+  ctx.fillStyle='#4ade80'; ctx.strokeStyle='#166534'; ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.ellipse(W/2, H/2-20, 120, 70, -0.2, 0, 2*Math.PI);
+  ctx.fill(); ctx.stroke();
+
+  // Midrib
+  ctx.strokeStyle='#166534'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W/2-100, H/2+10); ctx.lineTo(W/2+100, H/2-45); ctx.stroke();
+
+  // Veins
+  for(let i=-3;i<=3;i++){
+    ctx.lineWidth=1; ctx.strokeStyle='#166534';
+    ctx.beginPath();
+    ctx.moveTo(W/2+i*20, H/2-20);
+    ctx.lineTo(W/2+i*20+30, H/2-70+Math.abs(i)*5);
+    ctx.stroke();
+  }
+
+  // Water vapor arrows (stomata → atmosphere)
+  for(let i=0;i<5;i++){
+    const sx=W/2-80+i*35, sy=H/2-30+i%2*10;
+    ctx.strokeStyle='#60a5fa'; ctx.lineWidth=1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx+10, sy-40);
+    ctx.stroke();
+    // Arrowhead
+    ctx.fillStyle='#60a5fa';
+    ctx.beginPath(); ctx.moveTo(sx+10,sy-40); ctx.lineTo(sx+5,sy-30); ctx.lineTo(sx+15,sy-30); ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle='#1d4ed8'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('H₂O（水蒸気）蒸散', W/2+30, 30);
+  ctx.font='9px sans-serif';
+
+  // Stem
+  ctx.fillStyle='#78350f'; ctx.fillRect(W/2-8, H/2+50, 16, 90);
+  // Water rise arrow
+  ctx.strokeStyle='#3b82f6'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(W/2, H-20); ctx.lineTo(W/2, H/2+55); ctx.stroke();
+  ctx.fillStyle='#3b82f6'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('H₂O（道管）上昇', W/2, H-5);
+
+  // Root
+  ctx.fillStyle='#78350f'; ctx.strokeStyle='#78350f'; ctx.lineWidth=2;
+  for(let i=-3;i<=3;i++){
+    ctx.beginPath(); ctx.moveTo(W/2+i*8, H-20); ctx.lineTo(W/2+i*15, H-5); ctx.stroke();
+  }
+
+  // Stomata
+  ctx.fillStyle='#030712'; ctx.font='9px sans-serif'; ctx.textAlign='center';
+  for(let i=0;i<3;i++){
+    const sx=W/2-50+i*45, sy=H/2+28;
+    ctx.beginPath(); ctx.ellipse(sx, sy, 4, 2, 0, 0, 2*Math.PI); ctx.fill();
+  }
+  ctx.fillStyle='#1a1a1a'; ctx.font='9px sans-serif';
+  ctx.fillText('気孔', W/2, H/2+45);
+
+  ctx.fillStyle='#1a1a1a'; ctx.font='11px sans-serif'; ctx.textAlign='center';
+  ctx.fillText('蒸散：葉の気孔から水蒸気が放出される', W/2, H/2+70);
+}
+
+// ===== App state =====
+let mode = 'quiz';
+let currentQ = null, answered = false;
+let correct=0, wrong=0, total=0;
+let currentDiagram = 'stomata';
+let stomataOpen = true;
+
+function setMode(m) {
+  mode = m;
+  ['quiz','diagram'].forEach(id=>{
+    document.getElementById('m-'+id).className = id===m
+      ? 'px-3 py-1 rounded bg-green-900 text-green-200 text-xs font-semibold'
+      : 'px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs';
+  });
+  document.getElementById('quiz-panel').classList.toggle('hidden', m!=='quiz');
+  document.getElementById('diagram-panel').classList.toggle('hidden', m!=='diagram');
+  document.getElementById('score-row').classList.toggle('hidden', m!=='quiz');
+  if(m==='diagram') showDiagram(currentDiagram);
+  if(m==='quiz') nextQuestion();
+}
+
+function showDiagram(d) {
+  currentDiagram = d;
+  ['stomata','light','dark','transpiration'].forEach(id=>{
+    document.getElementById('d-'+id).className = id===d
+      ? 'px-3 py-1 rounded bg-green-800 text-green-200 text-xs font-semibold'
+      : 'px-3 py-1 rounded bg-slate-700 text-slate-400 text-xs';
+  });
+  const canvas = document.getElementById('diag-canvas');
+  const desc = document.getElementById('diag-desc');
+  if(d==='stomata'){
+    drawStomata(canvas, stomataOpen);
+    desc.innerHTML=`
+      <div class="font-semibold text-green-300">気孔の開閉メカニズム</div>
+      <div>• 光が当たると → 孔辺細胞でH⁺ポンプ活性化 → K⁺流入 → 膨圧↑ → <b>開く</b></div>
+      <div>• 乾燥・暗黒 → ABA合成 → K⁺流出 → 膨圧↓ → <b>閉じる</b></div>
+      <button onclick="stomataOpen=!stomataOpen;showDiagram('stomata')" class="mt-2 px-3 py-1 bg-green-800 text-green-200 rounded text-xs" aria-label="気孔の開閉を切り替え">開閉トグル</button>
+    `;
+  } else if(d==='light'){
+    drawLightReaction(canvas);
+    desc.innerHTML=`
+      <div class="font-semibold text-blue-300">明反応（チラコイク膜）</div>
+      <div>• PS II: 光 + H₂O → e⁻ + H⁺ + O₂（水の光分解）</div>
+      <div>• 電子伝達鎖: H⁺ポンプ → ATP合成酵素でATP生産</div>
+      <div>• PS I: 光 + e⁻ → NADPH生産</div>
+      <div>• 産物: <b>ATP + NADPH + O₂</b></div>
+    `;
+  } else if(d==='dark'){
+    drawCalvinCycle(canvas);
+    desc.innerHTML=`
+      <div class="font-semibold text-green-300">暗反応・カルビン回路（ストロマ）</div>
+      <div>• RuBP(C5) + CO₂ →[RuBisCO] 3-PGA(C3) × 2</div>
+      <div>• 3-PGA + ATP + NADPH → G3P（グリセルアルデヒド3-リン酸）</div>
+      <div>• G3P の一部 → グルコース合成 / 残りはRuBP再生</div>
+      <div>• CO₂ 3分子固定で G3P 1分子余剰（グルコース合成に使われる）</div>
+    `;
+  } else if(d==='transpiration'){
+    drawTranspiration(canvas);
+    desc.innerHTML=`
+      <div class="font-semibold text-cyan-300">蒸散のしくみ</div>
+      <div>• 根から吸収した水 → 道管（維管束）を通り → 葉の気孔から蒸散</div>
+      <div>• 凝集力-張力説: 蒸散による張力が水柱を道管上部に引き上げる</div>
+      <div>• 蒸散促進条件: 高温・低湿度・強風・光（気孔開）</div>
+      <div>• 蒸散の役割: 温度調節・水分の引き上げ・ミネラルの移動</div>
+    `;
+  }
+}
+
+// ===== Quiz logic =====
+function drawQuizCanvas(type) {
+  const canvas = document.getElementById('quiz-canvas');
+  const ctx = canvas.getContext('2d');
+  const W=canvas.width, H=canvas.height;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#052e16'; ctx.fillRect(0,0,W,H);
+
+  if(type==='stomata_open' || type==='stomata_close'){
+    drawStomata(canvas, type==='stomata_open');
+  } else if(type==='light_reaction'){
+    drawLightReaction(canvas);
+  } else if(type==='calvin_cycle' || type==='co2_fixation'){
+    drawCalvinCycle(canvas);
+  } else if(type==='transpiration' || type==='water_potential'){
+    drawTranspiration(canvas);
+  } else {
+    // Generic biology cell drawing
+    ctx.strokeStyle='#4ade80'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.ellipse(W/2,H/2,100,60,0,0,2*Math.PI); ctx.stroke();
+    ctx.fillStyle='#064e3b'; ctx.fillStyle='#065f46';
+    ctx.beginPath(); ctx.ellipse(W/2,H/2,100,60,0,0,2*Math.PI); ctx.fill();
+    // Chloroplasts
+    for(let i=0;i<5;i++){
+      const a=i*2*Math.PI/5, r=50;
+      const nx=W/2+r*Math.cos(a), ny=H/2+r*Math.sin(a)*0.6;
+      ctx.fillStyle='#4ade80';
+      ctx.beginPath(); ctx.ellipse(nx,ny,15,8,a,0,2*Math.PI); ctx.fill();
+    }
+    ctx.fillStyle='#f0fdf4'; ctx.font='10px sans-serif'; ctx.textAlign='center';
+    ctx.fillText('葉肉細胞（概念図）', W/2, H-8);
+  }
+}
+
+function nextQuestion() {
+  current = questions[Math.floor(Math.random()*questions.length)];
+  currentQ = current;
+  answered = false;
+  document.getElementById('feedback').textContent='';
+  document.getElementById('explanation').classList.add('hidden');
+  document.getElementById('next-btn').classList.add('hidden');
+
+  drawQuizCanvas(current.type);
+  document.getElementById('question-text').textContent = current.q;
+  document.getElementById('question-sub').textContent = current.sub||'';
+
+  document.getElementById('choices').innerHTML = current.choices.map((c,i)=>`
+    <button onclick="answer(${i})" class="bg-slate-700 hover:bg-slate-600 text-slate-200 py-2 px-3 rounded-lg text-sm text-left" aria-label="${c}">${c}</button>
+  `).join('');
+  total++;
+  document.getElementById('total-count').textContent = total;
+}
+
+function answer(idx) {
+  if(answered) return;
+  answered = true;
+  const fb = document.getElementById('feedback');
+  if(idx === currentQ.correct){
+    correct++;
+    fb.textContent='✅ 正解！';
+    fb.className='text-center text-sm font-semibold mb-2 text-green-400';
+    document.getElementById('correct-count').textContent=correct;
+  } else {
+    wrong++;
+    fb.textContent=`❌ 不正解。正解: ${currentQ.choices[currentQ.correct]}`;
+    fb.className='text-center text-sm font-semibold mb-2 text-red-400';
+    document.getElementById('wrong-count').textContent=wrong;
+  }
+  const exp = document.getElementById('explanation');
+  exp.textContent = '解説: ' + currentQ.explain;
+  exp.classList.remove('hidden');
+
+  document.querySelectorAll('#choices button').forEach((btn,i)=>{
+    btn.disabled=true;
+    if(i===currentQ.correct){
+      btn.className='bg-green-700 text-white py-2 px-3 rounded-lg text-sm text-left';
+    } else if(i===idx && idx!==currentQ.correct){
+      btn.className='bg-red-700 text-white py-2 px-3 rounded-lg text-sm text-left';
+    }
+  });
+  document.getElementById('next-btn').classList.remove('hidden');
+}
+
+nextQuestion();
+</script>
+</body>
+</html>
